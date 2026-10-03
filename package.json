@@ -20,6 +20,7 @@
     "google-auth-library": "^9.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^7.6.3",
+    "multer": "^2.4.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "validator": "^13.11.0"
