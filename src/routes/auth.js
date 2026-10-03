@@ -31,16 +31,17 @@ router.get('/google/callback',
 
     // Redirect to frontend with token and user data
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-    res.redirect(
-      `${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify({
-        id: req.user._id,
-        firstName: req.user.firstName,
-        lastName: req.user.lastName,
-        email: req.user.email,
-        avatar: req.user.avatar,
-        role: req.user.role
-      }))}`
-    )
+
+res.redirect(
+  `${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify({
+    id: req.user._id,
+    firstName: req.user.firstName,
+    lastName: req.user.lastName,
+    email: req.user.email,
+    avatar: req.user.avatar,
+    role: req.user.role
+  }))}`
+)
   }
 )
 
