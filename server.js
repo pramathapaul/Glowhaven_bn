@@ -10,3 +10,10 @@ app.listen(PORT, () => {
   console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`)
   console.log(`🔗 http://localhost:${PORT}`)
 })
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    time: new Date().toISOString()
+  });
+});
