@@ -12,6 +12,7 @@ import productRoutes from './routes/products.js'
 import orderRoutes from './routes/orders.js'
 import userRoutes from './routes/users.js'
 import authRoutes from './routes/auth.js'
+import promoRoutes from './routes/promoCodes.js'
 import { errorHandler } from './middleware/errorHandler.js'
 
 dotenv.config()
@@ -71,6 +72,7 @@ app.use('/api/products', productRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/api/promo-codes', promoRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {

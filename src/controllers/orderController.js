@@ -1,12 +1,17 @@
 import Order from '../models/Order.js'
 import Product from '../models/Product.js'
 import Invoice from '../models/Invoice.js'
+import PromoCode from '../models/PromoCode.js'
+import PromoRedemption from '../models/PromoRedemption.js'
+import { evaluatePromo } from './promoController.js'
 import fs from 'fs'
 
 // Create order
 export const createOrder = async (req, res) => {
+  let redemption = null
+  let promoCounter = null
   try {
-    const { items, shippingAddress, paymentMethod, subtotal, shippingCost, tax, total, notes } = req.body
+    const { items, shippingAddress, paymentMethod, subtotal, shippingCost, tax, total, notes, promoCode } = req.body
     
     if (!items || items.length === 0) {
       return res.status(400).json({
@@ -22,6 +27,10 @@ export const createOrder = async (req, res) => {
       })
     }
     
+    const orderItems = []
+    const promoCart = []
+    let calculatedSubtotal = 0
+
     for (const item of items) {
       const product = await Product.findById(item.product)
       if (!product) {
@@ -36,29 +45,41 @@ export const createOrder = async (req, res) => {
           message: `Insufficient stock for ${product.name}. Available: ${product.stock}`
         })
       }
-    }
-    
-    const orderItems = []
-    let calculatedSubtotal = 0
-    
-    for (const item of items) {
-      const product = await Product.findById(item.product)
-      const price = product.price
-      calculatedSubtotal += price * item.quantity
+      calculatedSubtotal += product.price * item.quantity
       orderItems.push({
         product: item.product,
         name: product.name,
-        price: price,
+        price: product.price,
         quantity: item.quantity,
         img: product.img
       })
+      promoCart.push({
+        price: product.price,
+        quantity: item.quantity,
+        category: product.category
+      })
     }
     
-    const finalSubtotal = subtotal || calculatedSubtotal
-    const finalShippingCost = shippingCost !== undefined ? shippingCost : (finalSubtotal > 1000 ? 0 : 50)
+    let finalSubtotal = subtotal || calculatedSubtotal
+    let promoDiscount = 0
+    let promoDoc = null
+
+    // Promo codes are always validated against the server-calculated cart
+    if (promoCode) {
+      finalSubtotal = calculatedSubtotal
+      const result = await evaluatePromo(promoCode, req.user._id, calculatedSubtotal, promoCart)
+      if (!result.ok) {
+        return res.status(400).json({ success: false, message: result.message })
+      }
+      promoDoc = result.promo
+      promoDiscount = result.discount
+    }
+
+    const discountedSubtotal = finalSubtotal - promoDiscount
+    const finalShippingCost = shippingCost !== undefined ? shippingCost : (discountedSubtotal > 1000 ? 0 : 50)
     const finalTax = tax || 0
-    const finalTotal = total || (finalSubtotal + finalShippingCost + finalTax)
-    
+    const finalTotal = Math.max(0, discountedSubtotal + finalShippingCost + finalTax)
+
     const orderData = {
       user: req.user._id,
       items: orderItems,
@@ -69,6 +90,12 @@ export const createOrder = async (req, res) => {
       tax: finalTax,
       total: finalTotal,
       notes: notes || '',
+      promoCode: promoDoc ? {
+        code: promoDoc.code,
+        type: promoDoc.type,
+        value: promoDoc.value,
+        discount: promoDiscount
+      } : undefined,
       orderStatus: 'Pending',
       timeline: [
         { status: 'Pending', description: 'Order placed and waiting for confirmation' }
@@ -77,13 +104,68 @@ export const createOrder = async (req, res) => {
 
     console.log('📦 Creating order with data:', orderData)
 
+    if (promoDoc) {
+      // Reserve the single allowed redemption (unique index = 1 user, 1 time)
+      try {
+        redemption = await PromoRedemption.create({
+          promo: promoDoc._id,
+          user: req.user._id,
+          discountAmount: promoDiscount
+        })
+      } catch (error) {
+        if (error.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: 'You have already used this promo code'
+          })
+        }
+        throw error
+      }
+
+      promoCounter = await PromoCode.findOneAndUpdate(
+        {
+          _id: promoDoc._id,
+          $or: [
+            { maxRedemptions: null },
+            { $expr: { $lt: ['$redemptionCount', '$maxRedemptions'] } }
+          ]
+        },
+        { $inc: { redemptionCount: 1 } },
+        { new: true }
+      )
+
+      if (!promoCounter) {
+        await PromoRedemption.deleteOne({ _id: redemption._id })
+        redemption = null
+        return res.status(400).json({
+          success: false,
+          message: 'This promo code has reached its usage limit'
+        })
+      }
+    }
+
     const order = new Order(orderData)
     await order.save()
+
+    // Order exists from here on - never roll back the promo reservation
+    promoCounter = null
+
+    if (redemption) {
+      redemption.order = order._id
+      await redemption.save().catch((err) => console.error('❌ Failed to link redemption:', err))
+    }
 
     console.log('✅ Order created:', order)
     
     res.status(201).json({ success: true, data: order })
   } catch (error) {
+    // Roll back the promo reservation if order creation failed
+    if (redemption && !redemption.order) {
+      await PromoRedemption.deleteOne({ _id: redemption._id }).catch(() => {})
+    }
+    if (promoCounter) {
+      await PromoCode.updateOne({ _id: promoCounter._id }, { $inc: { redemptionCount: -1 } }).catch(() => {})
+    }
     console.error('❌ Create order error:', error)
     res.status(500).json({ success: false, message: error.message })
   }

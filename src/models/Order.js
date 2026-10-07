@@ -108,6 +108,12 @@ const orderSchema = new mongoose.Schema({
   notes: {
     type: String,
     trim: true
+  },
+  promoCode: {
+    code: { type: String, default: null, uppercase: true, trim: true },
+    type: { type: String, enum: ['percent', 'fixed', null], default: null },
+    value: { type: Number, default: null },
+    discount: { type: Number, default: 0, min: 0 }
   }
 }, {
   timestamps: true

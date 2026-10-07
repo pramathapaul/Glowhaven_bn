@@ -1,5 +1,10 @@
 import mongoose from 'mongoose'
 
+export const PRODUCT_CATEGORIES = [
+  'Serums', 'Moisturizers', 'Cleansers', 'Masks', 'Toners', 'Eye Care',
+  'Sun Care', 'Lipsticks', 'Nail Polish', 'Makeup', 'Accessories', 'Fragrance', 'Body Wash'
+]
+
 const productSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -10,7 +15,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: ['Serums', 'Moisturizers', 'Cleansers', 'Masks', 'Toners', 'Eye Care', 'Sun Care', 'Lipsticks', 'Nail Polish', 'Makeup', 'Accessories', 'Fragrance', 'Body Wash'],
+    enum: PRODUCT_CATEGORIES,
     trim: true
   },
   subcategory: {
