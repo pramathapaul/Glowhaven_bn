@@ -23,7 +23,7 @@ const createAdmin = async () => {
       email: 'admin@glowhaven.com',
       password: 'admin123',
       role: 'admin',
-      phone: '+1 (555) 000-0000'
+      phone: '+91 8910434478'
     })
     
     console.log('✅ Admin user created successfully!')
